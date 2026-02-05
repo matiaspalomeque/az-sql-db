@@ -1,10 +1,10 @@
-import * as readline from 'readline';
-
 export class KeyboardHandler {
   private enabled: boolean = false;
   private paused: boolean = false;
   private skipDatabase: boolean = false;
   private originalRawMode: boolean = false;
+  private boundHandleKeypress = this.handleKeypress.bind(this);
+  private boundHandleExit = this.handleExit.bind(this);
 
   constructor() {
     this.enabled = process.stdin.isTTY === true && process.stdout.isTTY === true;
@@ -20,10 +20,10 @@ export class KeyboardHandler {
       process.stdin.resume();
       process.stdin.setEncoding('utf8');
 
-      process.stdin.on('data', this.handleKeypress.bind(this));
+      process.stdin.on('data', this.boundHandleKeypress);
 
-      process.on('SIGINT', this.handleExit.bind(this));
-      process.on('SIGTERM', this.handleExit.bind(this));
+      process.on('SIGINT', this.boundHandleExit);
+      process.on('SIGTERM', this.boundHandleExit);
     } catch (error) {
       this.enabled = false;
     }
@@ -33,9 +33,9 @@ export class KeyboardHandler {
     if (!this.enabled) return;
 
     try {
-      process.stdin.removeAllListeners('data');
-      process.removeListener('SIGINT', this.handleExit.bind(this));
-      process.removeListener('SIGTERM', this.handleExit.bind(this));
+      process.stdin.removeListener('data', this.boundHandleKeypress);
+      process.removeListener('SIGINT', this.boundHandleExit);
+      process.removeListener('SIGTERM', this.boundHandleExit);
       if (process.stdin.setRawMode) {
         process.stdin.setRawMode(this.originalRawMode);
       }

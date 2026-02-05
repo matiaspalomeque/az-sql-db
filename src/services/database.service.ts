@@ -1,5 +1,6 @@
 import sql from 'mssql';
 import { DatabaseConfig } from '../models/types.js';
+import { SQL_QUERIES } from '../utils/sql-queries.js';
 
 export class DatabaseService {
   private pools: Map<string, sql.ConnectionPool> = new Map();
@@ -23,7 +24,7 @@ export class DatabaseService {
 
     const poolConfig = {
       ...this.config,
-      database: database,
+      database: database || 'master',
     } as sql.config;
 
     const pool = new sql.ConnectionPool(poolConfig);
@@ -60,16 +61,7 @@ export class DatabaseService {
   }
 
   async getDatabaseList(): Promise<string[]> {
-    const query = `
-      SELECT name
-      FROM sys.databases
-      WHERE database_id > 4
-        AND state_desc = 'ONLINE'
-        AND name NOT IN ('master', 'tempdb', 'model', 'msdb')
-      ORDER BY name;
-    `;
-
-    const results = await this.executeQuery<{ name: string }>(query);
+    const results = await this.executeQuery<{ name: string }>(SQL_QUERIES.GET_USER_DATABASES);
     return results.map(r => r.name);
   }
 

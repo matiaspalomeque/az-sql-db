@@ -34,7 +34,13 @@ export class IndexMaintenanceService {
     };
 
     try {
-      const indexes = await this.getFragmentedIndexes(dbName);
+      const indexes = await this.raceWithSkip(this.getFragmentedIndexes(dbName));
+
+      if (indexes === null) {
+        console.log('    ⏭️  Database skip requested - aborting index analysis');
+        result.totalDuration = (Date.now() - startTime) / 1000;
+        return result;
+      }
 
       for (const index of indexes) {
         await this.keyboardHandler?.waitWhilePaused();
@@ -63,7 +69,12 @@ export class IndexMaintenanceService {
         }
 
         try {
-          const maintenanceResult = await this.performMaintenance(index, action);
+          const maintenanceResult = await this.raceWithSkip(this.performMaintenance(index, action));
+
+          if (maintenanceResult === null) {
+            console.log('    ⏭️  Database skip requested - aborting current operation');
+            break;
+          }
 
           if (maintenanceResult.success) {
             if (action === MaintenanceAction.REBUILD) {
@@ -73,28 +84,28 @@ export class IndexMaintenanceService {
             }
             this.logger.logSuccess(action, maintenanceResult.duration, maintenanceResult.retryAttempts);
 
-            if (this.keyboardHandler?.shouldSkipCurrentDatabase()) {
-              console.log('    ⏭️  Database skip requested - stopping index processing');
-              break;
-            }
-
-            // Update statistics
-            const statsStartTime = Date.now();
-            await this.updateStatistics(index);
-            const statsDuration = (Date.now() - statsStartTime) / 1000;
-            this.logger.logStatisticsUpdate(statsDuration);
-
-            if (this.keyboardHandler?.shouldSkipCurrentDatabase()) {
-              console.log('    ⏭️  Database skip requested - stopping index processing');
-              break;
+            // Update statistics (non-critical)
+            try {
+              const statsStartTime = Date.now();
+              const statsResult = await this.raceWithSkip(this.updateStatistics(index));
+              if (statsResult === null) {
+                console.log('    ⏭️  Database skip requested - aborting statistics update');
+                break;
+              }
+              const statsDuration = (Date.now() - statsStartTime) / 1000;
+              this.logger.logStatisticsUpdate(statsDuration);
+            } catch (statsError) {
+              this.logger.logError(`Statistics update failed (index maintenance succeeded): ${statsError}`);
             }
 
             // DTU throttling delay
             if (action === MaintenanceAction.REBUILD) {
-              await delay(this.maintenanceConfig.rebuildDelayMs);
+              const skipped = await this.raceWithSkip(delay(this.maintenanceConfig.rebuildDelayMs));
+              if (skipped === null) break;
               this.logger.logThrottleDelay('REBUILD', this.maintenanceConfig.rebuildDelayMs);
             } else if (action === MaintenanceAction.REORGANIZE) {
-              await delay(this.maintenanceConfig.reorganizeDelayMs);
+              const skipped = await this.raceWithSkip(delay(this.maintenanceConfig.reorganizeDelayMs));
+              if (skipped === null) break;
               this.logger.logThrottleDelay('REORGANIZE', this.maintenanceConfig.reorganizeDelayMs);
             }
           } else {
@@ -115,6 +126,31 @@ export class IndexMaintenanceService {
     }
 
     result.totalDuration = (Date.now() - startTime) / 1000;
+    return result;
+  }
+
+  private async raceWithSkip<T>(operation: Promise<T>): Promise<T | null> {
+    if (!this.keyboardHandler) return operation;
+
+    let timer: ReturnType<typeof setTimeout>;
+    const skipSignal = new Promise<null>(resolve => {
+      const poll = () => {
+        if (this.keyboardHandler!.shouldSkipCurrentDatabase()) {
+          resolve(null);
+        } else {
+          timer = setTimeout(poll, 100);
+        }
+      };
+      poll();
+    });
+
+    const result = await Promise.race([operation, skipSignal]);
+    clearTimeout(timer!);
+
+    if (result === null) {
+      operation.catch(() => {}); // prevent unhandled rejection from abandoned operation
+    }
+
     return result;
   }
 
