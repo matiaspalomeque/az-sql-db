@@ -118,6 +118,16 @@ export class IndexMaintenanceService {
           this.logger.logError(String(error));
         }
       }
+      // Clear procedure cache if enabled and maintenance was performed
+      if (this.maintenanceConfig.freeProcCache && (result.indexesRebuilt > 0 || result.indexesReorganized > 0)) {
+        try {
+          const cacheStartTime = Date.now();
+          await this.dbService.executeQuery(SQL_QUERIES.FREE_PROC_CACHE, dbName);
+          this.logger.logFreeProcCache((Date.now() - cacheStartTime) / 1000);
+        } catch (cacheError) {
+          this.logger.logError(`DBCC FREEPROCCACHE failed (non-critical): ${cacheError}`);
+        }
+      }
     } catch (error) {
       result.success = false;
       result.criticalFailure = true;

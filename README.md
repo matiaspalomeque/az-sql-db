@@ -19,6 +19,7 @@ A Bun TypeScript application that performs intelligent index maintenance on Azur
 - **Detailed Logging**: Real-time progress tracking with timing information
 - **Retry Logic**: Automatic retry with exponential backoff for transient failures
 - **DTU Throttling**: Configurable delays between operations to manage resource consumption
+- **Procedure Cache Clearing**: Optional `DBCC FREEPROCCACHE` per-database after maintenance to force plan recompilation
 
 ## Prerequisites
 
@@ -162,6 +163,9 @@ INDEX_REORGANIZE_DELAY_MS=500                # Delay after REORGANIZE operations
 RETRY_MAX_ATTEMPTS=3                         # Maximum retry attempts (default: 3)
 RETRY_BASE_DELAY_MS=1000                     # Base delay for retries (default: 1000)
 RETRY_MAX_DELAY_MS=30000                     # Maximum retry delay cap (default: 30000)
+
+# Clear procedure cache after maintenance (per-database)
+FREE_PROC_CACHE=false                        # Run DBCC FREEPROCCACHE after maintenance (default: false)
 ```
 
 ## Output Example
@@ -228,6 +232,9 @@ Only processes indexes that meet these criteria:
 
 ### Statistics Update
 After each rebuild or reorganize operation, statistics are updated with `FULLSCAN` to ensure optimal query performance.
+
+### Procedure Cache Clearing
+When `FREE_PROC_CACHE=true`, the tool runs `DBCC FREEPROCCACHE` on each database after its indexes have been maintained. This forces SQL Server to recompile cached execution plans so they benefit from the updated statistics and index structures. Only executes on databases where at least one index was rebuilt or reorganized. Disabled by default since it causes a temporary CPU spike as all plans recompile.
 
 ## Verification
 

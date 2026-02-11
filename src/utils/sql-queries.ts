@@ -34,4 +34,6 @@ export const SQL_QUERIES = {
 
   UPDATE_STATISTICS: (schemaName: string, tableName: string, indexName: string): string =>
     `UPDATE STATISTICS [${schemaName}].[${tableName}] [${indexName}] WITH FULLSCAN;`,
+
+  FREE_PROC_CACHE: 'DBCC FREEPROCCACHE;',
 };

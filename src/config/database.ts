@@ -7,6 +7,7 @@ export interface MaintenanceConfig {
   retryBaseDelayMs: number;
   retryMaxDelayMs: number;
   rebuildOnline: boolean;
+  freeProcCache: boolean;
 }
 
 export function loadMaintenanceConfig(cliOverride?: boolean): MaintenanceConfig {
@@ -23,6 +24,7 @@ export function loadMaintenanceConfig(cliOverride?: boolean): MaintenanceConfig 
     retryBaseDelayMs: parseInt(process.env.RETRY_BASE_DELAY_MS || '1000', 10),
     retryMaxDelayMs: parseInt(process.env.RETRY_MAX_DELAY_MS || '30000', 10),
     rebuildOnline,
+    freeProcCache: process.env.FREE_PROC_CACHE?.toLowerCase() === 'true',
   };
 }
 

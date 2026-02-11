@@ -59,6 +59,10 @@ export class LoggerService {
     console.log('='.repeat(80));
   }
 
+  logFreeProcCache(duration: number): void {
+    console.log(`    🧹 Procedure cache cleared (DBCC FREEPROCCACHE) in ${duration.toFixed(2)}s`);
+  }
+
   logError(error: string): void {
     console.log(`    ❌ Error: ${error}`);
   }
